@@ -1,0 +1,38 @@
+name: Sync GitHub Comments to Azure Boards
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  sync-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Extract comment and issue details
+        id: extract
+        run: |
+          echo "COMMENT_BODY=${{ github.event.comment.body }}" >> $GITHUB_ENV
+          echo "ISSUE_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
+          echo "ISSUE_TITLE=${{ github.event.issue.title }}" >> $GITHUB_ENV
+
+      - name: Send comment to Azure Boards
+        env:
+          AZURE_PERSONAL_ACCESS_TOKEN: ${{ secrets.AZURE_PAT }}
+          AZURE_ORG_URL: https://dev.azure.com/aidevelych
+          AZURE_PROJECT: SuperCards
+        run: |
+          ISSUE_URL="https://github.com/${{ github.repository }}/issues/${{ env.ISSUE_NUMBER }}"
+          COMMENT="GitHub Issue: $ISSUE_URL\nComment: ${{ env.COMMENT_BODY }}"
+
+          curl -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $AZURE_PERSONAL_ACCESS_TOKEN" \
+            -d '{
+              "fields": {
+                "System.History": "'"$COMMENT"'"
+              }
+            }' \
+            "${AZURE_ORG_URL}/${AZURE_PROJECT}/_apis/wit/workitems/<WorkItemID>?api-version=6.0"
